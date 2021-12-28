@@ -24,7 +24,7 @@ from sklearn.tree import DecisionTreeRegressor
 # Creates Dataframe
 def setUpData(dataPath): 
     # Load the data, and separate the target
-    dataFrame = pd.read_csv(dataPath)
+    dataFrame = pd.read_csv(dataPath, sep='\t')
     return dataFrame
 
 # Creates Predicted Feature
@@ -51,6 +51,7 @@ def duplicateRemoval (dataFrame):
     dataFrame.reset_index(drop=True,inplace=True)
     dataFrame = dataFrame.drop('is_duplicate',axis=1)
 
+# Reduces Cardinality and Sets Other Entries Outside of Exclusion List to 'Other' 
 def cardinalityReduction (dataFrame, column): 
     selectedColumn = dataFrame[f'{column}']
     cardinality = selectedColumn.unique()
@@ -71,9 +72,14 @@ def cardinalityReduction (dataFrame, column):
     dataFrame['column'] = dataFrame['column'].fillna('Other')
 
     # Replacing the column Column w/ the New Country Data Adds Index Column "Unnamed: 0" -> Dropped
-    dataFrame = dataFrame.drop('Unnamed: 0', axis='columns')
+    dataFrame = dataFrame.drop('Unnamed: 0', axis='columns') 
 
     return dataFrame
+
+def changeColumnValues(dataFrame, exclusionList, column):
+    dataFrame[f"{column}"] = dataFrame[f"{column}"].replace(exclusionList, 'Other')
+    dataFrame[f"{column}"] = dataFrame[f"{column}"].fillna('Other')
+
 
 
 # ***************************************************************************************************************************
@@ -86,4 +92,15 @@ def outputCSV(originalDataFrame, predictions, modelName, validationData):
     validationData['predictions'] = predictions
     validPredictions = pd.DataFrame(validationData['predictions'])
     modelPredictions = pd.merge(originalDataFrame, validPredictions, how = 'left', left_index = True, right_index = True)
-    modelPredictions.to_csv(f"data_output_csv/{modelName}.csv")
+    modelPredictions.to_csv(f"data_output_csv/{modelName}.csv")  
+
+
+
+# ***************************************************************************************************************************
+#                                                       Data Checks                                                         #
+# ***************************************************************************************************************************
+def cardinalityCount(dataFrame, column):
+    selectedColumn = dataFrame[f'{column}']
+    cardinality = selectedColumn.unique()
+    cardinalitySeries = selectedColumn.value_counts(ascending=False) 
+    print(f"{column} Cardinality is: {cardinality.size}")
