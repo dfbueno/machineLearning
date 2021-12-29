@@ -15,9 +15,13 @@ from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.tree import DecisionTreeRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
 from collections import OrderedDict
-
 from data_processing.input_manipulation import *
+import os
+import glob
+
 
 # Load the data, and separate the target
 data_path = 'marketing_campaign.csv'
@@ -40,19 +44,22 @@ y = marketingData.MntWines
 # # Create X 
 features = ['Education', 'Marital_Status', 'Income', 'Kidhome', 'Teenhome', 'NumWebVisitsMonth']
 
+# Separate Features Into List Variables for Categorical and Numerical Columns
+categorical_cols = ['Education', 'Marital_Status']
+numerical_cols = ['Income', 'Kidhome', 'Teenhome', 'NumWebVisitsMonth']
+
 # # Check Cardinality and Print
 # for feature in features:
 #     cardinalityCount(marketingData, feature)
 
 # Results
-# Column              Cardinality:             dtype:     Note: 
-# Education           Cardinality is: 4        String     Needs to be Encoded
-# Marital_Status      Cardinality is: 7        String     Needs to be Encoded
-# Income              Cardinality is: 1975     int
-# Kidhome             Cardinality is: 3        int
-# Teenhome            Cardinality is: 3        int
-# NumWebVisitsMonth   Cardinality is: 16       int 
-
+# Column                Cardinality:             dtype:     Note: 
+# Education             Cardinality is: 4        String     Needs to be Encoded
+# Marital_Status        Cardinality is: 7        String     Needs to be Encoded
+# Income                Cardinality is: 1975     int
+# Kidhome               Cardinality is: 3        int
+# Teenhome              Cardinality is: 3        int
+# NumWebVisitsMonth     Cardinality is: 16       int 
 
 # Select Columns Corresponding to Feature and Preview Data
 X = marketingData[features]
@@ -64,48 +71,82 @@ X = marketingData[features]
 # Split Into Validation and Training Data
 X_train, X_valid, Y_train, Y_valid = train_test_split(X, y, random_state=0)
 
-# Gets List of Categorical Columns
-object_cols = [col for col in X_train.columns if X_train[col].dtype == "object"]
 
-# Low Cardinality Columns (Will Be One-Hot Encoded)
-low_cardinality_cols = [col for col in object_cols if X_train[col].nunique() < 10]
 
-# High Cardinality Columns (To Be Dropped)
-high_cardinality_cols = list(set(object_cols) - set(low_cardinality_cols))
+# ***************************************************************************************************************************
+#                                                       Transformers                                                        #
+# ***************************************************************************************************************************
+# Numerical Transformer for Preprocessing Numerical Data
+numerical_transformer = SimpleImputer(strategy='constant')
 
-# Apply One-Hot Encoder
-OH_encoder = OneHotEncoder(handle_unknown='ignore', sparse=False)
-OH_cols_train = pd.DataFrame(OH_encoder.fit_transform(X_train[low_cardinality_cols]))
-OH_cols_valid = pd.DataFrame(OH_encoder.transform(X_valid[low_cardinality_cols]))
+# Categorical Transformer for Preprocessing Categorical Data
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
 
-# One-hot encoding Removed Index...Put It Back
-OH_cols_train.index = X_train.index
-OH_cols_valid.index = X_valid.index
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numerical_transformer, numerical_cols),
+        ('cat', categorical_transformer, categorical_cols)
+    ]
+)
 
-# Remove Categorical Columns (Replace w/ One-Hot Encoding)
-num_X_train = X_train.drop(object_cols, axis=1)
-num_X_valid = X_valid.drop(object_cols, axis=1)
 
-# Add One_Hot Encoded Columns to Numerical Features
-OH_X_train = pd.concat([num_X_train, OH_cols_train], axis=1)
-OH_X_valid = pd.concat([num_X_valid, OH_cols_valid], axis=1)
-
-# Imputation After One-Encoding Process 
-my_imputer = SimpleImputer()
-imputed_OH_X_train = pd.DataFrame(my_imputer.fit_transform(OH_X_train))
-imputed_OH_X_valid = pd.DataFrame(my_imputer.transform(OH_X_valid))
-
-# Fill in Lines Below -> Imputation Removed Columns -> Put Them Back
-imputed_OH_X_train.columns = OH_X_train.columns 
-imputed_OH_X_valid.columns = OH_X_valid.columns
-
+# ***************************************************************************************************************************
+#                                              Random Forest Model w/ Pipeline                                              #
+# ***************************************************************************************************************************
 # Define a Random Forest Model
-rf_model = RandomForestRegressor(random_state=1)
-rf_model.fit(imputed_OH_X_train, Y_train)
-rf_val_predictions = rf_model.predict(imputed_OH_X_valid)
-rf_val_mae = mean_absolute_error(rf_val_predictions, Y_valid)
+rfmModel = RandomForestRegressor(n_estimators=100, random_state=0)
 
-print("Validation MAE for Random Forest Model: {:,.0f}".format(rf_val_mae))
+# Create Pipeline for RGM
+rfm_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+                       ('model', rfmModel)
+])
+
+# Fit Pipeline/Model
+rfm_pipeline.fit(X_train, Y_train)
+
+# Get Predictions
+rfm_predictions = rfm_pipeline.predict(X_valid)
+
+
+
+# Evaluate MAE for RGM 
+rfm_score = -1 * cross_val_score(rfm_pipeline, X, y,
+                                 cv=5,
+                                 scoring='neg_mean_absolute_error')
+
+print('Average RFM MAE:', rfm_score.mean())
+
+
+# ***************************************************************************************************************************
+#                                              XGB Regressor Model w/ Pipeline                                              #
+# ***************************************************************************************************************************
+# Define a XGB Regressor Model
+xgbModel = XGBRegressor(n_estimators=500, learning_rate=0.05, n_jobs=4)
+
+# Create Pipeline for RGM
+xgb_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+                       ('model', xgbModel)
+])
+
+# Fit Pipeline/Model
+xgb_pipeline.fit(X_train, Y_train)
+
+# Get Predictions
+xgb_predictions = xgb_pipeline.predict(X_valid)
+
+# Evaluate MAE for RGM 
+# Evaluate MAE for RGM 
+xgb_score = -1 * cross_val_score(xgb_pipeline, X, y,
+                                 cv=5,
+                                 scoring='neg_mean_absolute_error')
+
+print('Average XGB MAE:', xgb_score.mean())
+
+
+
 
 
 
@@ -124,19 +165,7 @@ print("Validation MAE for Random Forest Model: {:,.0f}".format(rf_val_mae))
 # # Check a Single Dataset
 # # print(OH_cols_valid)
 
-# #################################################################################################################
-
-# # The current problem as it stands is that during the One-Hot Encoding process that the data is for some reason
-# # converted to a datatype that extends past the size of float32/infinity or to NaN. The other thing that is confusing
-# # is the error that references a piece of data..."Graduation" inside of the Education column and technically that should've been
-# # One-Hot Encoded and should be within 4 bytes. 
-
-# # datascience.stackexchange.com/questions/11928/valueerror-input-contains-nan-infinity-or-a-value-too-large-for-dtypefloat32
-
-# # I referenced the above link, but my problem is not checking the data, it's one-hot encoding properly. 
-
-# # I included a little debugging section to look at all of the data at once and see which of the validation and training sets are 
-# # causing the problem... 
+###################################################################################################################
 
 
 

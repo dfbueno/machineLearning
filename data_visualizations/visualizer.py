@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from seaborn.matrix import heatmap
 import itertools
+import os
+import glob
 
 # Data Path Import
 data_path = 'data_output_csv/marketing_data_output.csv'
@@ -24,7 +26,7 @@ numwebvisitsmonth_data = pd.read_csv(data_path, index_col='NumWebPurchases')
 
 
 # ***************************************************************************************************************************
-#                                      Bar Plot for Average Amount of Wine Purchased by Education                                   #
+#                                      Bar Plot for Average Amount of Wine Purchased by Education                           #
 # ***************************************************************************************************************************
 plt.figure(figsize=(10,6))
 plt.ylim(0,500)
