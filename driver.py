@@ -119,6 +119,8 @@ rfm_score = -1 * cross_val_score(rfm_pipeline, X, y,
 
 print('Average RFM MAE:', rfm_score.mean())
 
+outputCSV(marketingData, rfm_predictions, "rfmOutput", Y_valid)
+
 
 # ***************************************************************************************************************************
 #                                              XGB Regressor Model w/ Pipeline                                              #
@@ -145,10 +147,7 @@ xgb_score = -1 * cross_val_score(xgb_pipeline, X, y,
 
 print('Average XGB MAE:', xgb_score.mean())
 
-
-
-
-
+outputCSV(marketingData, xgb_predictions, "xgbRegressorOutput", Y_valid)
 
 # ################################################ Debugging #####################################################
 # # Copy Paste Whatever Needs to Be Checked in the dataCheck list
