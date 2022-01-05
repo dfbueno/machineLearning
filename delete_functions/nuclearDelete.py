@@ -9,6 +9,11 @@ initial_visualizations = glob.glob('visualizations_output/initial_visualizations
 for visualizations in initial_visualizations:
     os.remove(visualizations)
 
-final_visualizations = glob.glob('visualizations_output/final_visualizations/*')
-for visualizations in final_visualizations:
+xgbVisualizations = glob.glob('visualizations_output/final_visualizations/xgbModel/*')
+for visualizations in xgbVisualizations:
     os.remove(visualizations)
+
+rfVisualizations = glob.glob('visualizations_output/final_visualizations/rfModel/*')
+for visualizations in rfVisualizations:
+    os.remove(visualizations)
+

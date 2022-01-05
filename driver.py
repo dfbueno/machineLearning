@@ -17,10 +17,17 @@ from sklearn.impute import SimpleImputer
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import LogisticRegression
+from sklearn.inspection import permutation_importance
 from collections import OrderedDict
-from data_processing.input_manipulation import *
+from data_processing.inputManipulation import *
+from numpy import loadtxt
+from xgboost import XGBClassifier
+from matplotlib import pyplot
+from xgboost import plot_importance
 import os
 import glob
+import matplotlib.pyplot as plt
 
 
 # Load the data, and separate the target
@@ -36,12 +43,12 @@ changeColumnValues(marketingData, educationExclusionList, 'Education')
 changeColumnValues(marketingData, marriageExclusionList, 'Marital_Status')
 
 # Output .csv File Into data_output_csv Folder
-# marketingData.to_csv('data_output_csv/marketing_data_output.csv')
+# marketingData.to_csv('data_output_csv/marketingDataOutput.csv')
 
-# # Create Y
+# Create Y
 y = marketingData.MntWines
 
-# # Create X 
+# Create X 
 features = ['Education', 'Marital_Status', 'Income', 'Kidhome', 'Teenhome', 'NumWebVisitsMonth']
 
 # Separate Features Into List Variables for Categorical and Numerical Columns
@@ -72,9 +79,8 @@ X = marketingData[features]
 X_train, X_valid, Y_train, Y_valid = train_test_split(X, y, random_state=0)
 
 
-
-# ***************************************************************************************************************************
-#                                                       Transformers                                                        #
+# # ***************************************************************************************************************************
+# #                                                       Transformers                                                        #
 # ***************************************************************************************************************************
 # Numerical Transformer for Preprocessing Numerical Data
 numerical_transformer = SimpleImputer(strategy='constant')
@@ -100,26 +106,43 @@ preprocessor = ColumnTransformer(
 rfmModel = RandomForestRegressor(n_estimators=100, random_state=0)
 
 # Create Pipeline for RGM
-rfm_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+rfmPipeline = Pipeline(steps=[('preprocessor', preprocessor),
                        ('model', rfmModel)
 ])
 
+# Fit Model for Feature Importance...No Training data
+rfmPipeline.fit(marketingData, y)
+
+result = permutation_importance(
+    rfmPipeline, marketingData, y, n_repeats=10, random_state=42, n_jobs=2
+)
+
+sortedIdx= result.importances_mean.argsort()
+
+fig, ax = plt.subplots()
+ax.boxplot(
+    result.importances[sortedIdx].T, vert=False, labels=marketingData.columns[sortedIdx]
+)
+
+ax.set_title("Permutation Importances for Random Forest Model")
+fig.tight_layout()
+plt.show()
+
 # Fit Pipeline/Model
-rfm_pipeline.fit(X_train, Y_train)
+rfmPipeline.fit(X_train, Y_train)
 
 # Get Predictions
-rfm_predictions = rfm_pipeline.predict(X_valid)
-
+rfm_predictions = rfmPipeline.predict(X_valid)
 
 
 # Evaluate MAE for RGM 
-rfm_score = -1 * cross_val_score(rfm_pipeline, X, y,
+rfm_score = -1 * cross_val_score(rfmPipeline, X, y,
                                  cv=5,
                                  scoring='neg_mean_absolute_error')
 
 print('Average RFM MAE:', rfm_score.mean())
 
-outputCSV(marketingData, rfm_predictions, "rfmOutput", Y_valid)
+# outputCSV(marketingData, rfm_predictions, "rfmOutput", Y_valid)
 
 
 # ***************************************************************************************************************************
@@ -129,25 +152,46 @@ outputCSV(marketingData, rfm_predictions, "rfmOutput", Y_valid)
 xgbModel = XGBRegressor(n_estimators=500, learning_rate=0.05, n_jobs=4)
 
 # Create Pipeline for RGM
-xgb_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+xgbPipeline = Pipeline(steps=[('preprocessor', preprocessor),
                        ('model', xgbModel)
 ])
 
+# Fit Model for Feature Importance...No Training data
+xgbPipeline.fit(marketingData, y)
+
+result = permutation_importance(
+    xgbPipeline, marketingData, y, n_repeats=10, random_state=42, n_jobs=2
+)
+
+sortedIdx= result.importances_mean.argsort()
+
+fig, ax = plt.subplots()
+ax.boxplot(
+    result.importances[sortedIdx].T, vert=False, labels=marketingData.columns[sortedIdx]
+)
+
+ax.set_title("Permutation Importances for XGB Regressor Model")
+fig.tight_layout()
+plt.show()
+
+
 # Fit Pipeline/Model
-xgb_pipeline.fit(X_train, Y_train)
+xgbPipeline.fit(X_train, Y_train)
+
 
 # Get Predictions
-xgb_predictions = xgb_pipeline.predict(X_valid)
+xgb_predictions = xgbPipeline.predict(X_valid)
 
 # Evaluate MAE for RGM 
 # Evaluate MAE for RGM 
-xgb_score = -1 * cross_val_score(xgb_pipeline, X, y,
+xgb_score = -1 * cross_val_score(xgbPipeline, X, y,
                                  cv=5,
                                  scoring='neg_mean_absolute_error')
 
 print('Average XGB MAE:', xgb_score.mean())
 
-outputCSV(marketingData, xgb_predictions, "xgbRegressorOutput", Y_valid)
+# outputCSV(marketingData, xgb_predictions, "xgbRegressorOutput", Y_valid)
+
 
 # ################################################ Debugging #####################################################
 # # Copy Paste Whatever Needs to Be Checked in the dataCheck list
@@ -165,6 +209,5 @@ outputCSV(marketingData, xgb_predictions, "xgbRegressorOutput", Y_valid)
 # # print(OH_cols_valid)
 
 ###################################################################################################################
-
 
 
